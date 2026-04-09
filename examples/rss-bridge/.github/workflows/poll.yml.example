@@ -1,0 +1,75 @@
+# Example GitHub Actions workflow for rss-bridge.
+#
+# Polls the configured feed every hour. When a new item appears,
+# Claude drafts per-platform posts and UniPost publishes them. The
+# state file (state.json) is committed back to the repo so the next
+# run knows where to resume from.
+#
+# Setup (5 minutes):
+#   1. Copy this file to .github/workflows/rss-bridge.yml in your
+#      OWN repo (not the AgentPost monorepo).
+#   2. Replace FEED_URL below with your blog/podcast/release feed.
+#   3. Add two secrets to your repo (Settings → Secrets and variables → Actions):
+#        UNIPOST_API_KEY     — from app.unipost.dev/api-keys
+#        ANTHROPIC_API_KEY   — from console.anthropic.com/settings/keys
+#   4. (Optional) Pin a stable AgentPost version by checking out a
+#      specific commit instead of main.
+#   5. Commit and push. The workflow runs hourly and on every manual
+#      "Run workflow" click in the Actions tab.
+#
+# Permissions: this workflow needs `contents: write` so it can commit
+# the state.json update back to the repo. The default GITHUB_TOKEN has
+# this permission when you opt in via the `permissions:` block below.
+
+name: rss-bridge
+
+on:
+  schedule:
+    # Top of every hour. Cron is in UTC. Adjust to your cadence —
+    # most blogs and podcasts don't need more than every-6-hours
+    # polling, and tighter cadences just waste GitHub Action minutes.
+    - cron: "0 * * * *"
+  workflow_dispatch: # also allow manual runs from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --prefix examples/rss-bridge
+
+      - name: Run rss-bridge
+        env:
+          UNIPOST_API_KEY: ${{ secrets.UNIPOST_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Replace this with YOUR feed URL.
+          FEED_URL: https://example.com/feed.xml
+        run: |
+          npx --prefix examples/rss-bridge tsx \
+            examples/rss-bridge/src/index.ts \
+            "$FEED_URL" \
+            --state examples/rss-bridge/state.json \
+            --max 5
+
+      - name: Commit state.json if changed
+        run: |
+          if [[ -n "$(git status --porcelain examples/rss-bridge/state.json)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add examples/rss-bridge/state.json
+            git commit -m "rss-bridge: advance state [skip ci]"
+            git push
+          else
+            echo "No state change."
+          fi
