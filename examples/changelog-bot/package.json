@@ -1,0 +1,19 @@
+{
+  "name": "@unipost/agentpost-changelog-bot",
+  "version": "0.1.0",
+  "description": "Example AgentPost agent — turns a CHANGELOG.md diff into multi-platform launch posts on every release.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

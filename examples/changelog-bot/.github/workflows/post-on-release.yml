@@ -1,0 +1,34 @@
+name: Post on release
+
+# Drop this file into your own repo's .github/workflows/ to get
+# automatic multi-platform launch posts every time you tag a
+# release. Add UNIPOST_API_KEY and ANTHROPIC_API_KEY as repository
+# secrets.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          npm install -g @unipost/agentpost
+          curl -fsSL https://raw.githubusercontent.com/unipost-dev/agentpost/main/examples/changelog-bot/src/index.ts -o changelog-bot.ts
+          npm install --no-save @anthropic-ai/sdk tsx
+
+      - name: Generate + publish posts
+        env:
+          UNIPOST_API_KEY: ${{ secrets.UNIPOST_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx tsx changelog-bot.ts CHANGELOG.md
