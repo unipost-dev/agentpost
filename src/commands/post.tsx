@@ -16,7 +16,7 @@ import kleur from "kleur";
 
 import { requireConfig } from "../lib/config.js";
 import { UniPostClient } from "../lib/unipost.js";
-import { generateDrafts } from "../lib/claude.js";
+import { generateDrafts, modelForProvider, providerLabel, requireProviderKey } from "../lib/llm/index.js";
 import { Preview } from "../ui/preview.js";
 import type {
   PlatformDraft,
@@ -55,8 +55,22 @@ export async function runPost(opts: PostOptions): Promise<void> {
     process.exit(1);
   }
 
+  // Sprint 5 PR5: lazy per-provider key check. The provider is read
+  // from cfg.llm_provider; the matching key has to be present before
+  // we even try to call the SDK. requireProviderKey throws a clear
+  // "run agentpost init" message that we surface verbatim.
+  try {
+    requireProviderKey(cfg);
+  } catch (e) {
+    console.error(kleur.red((e as Error).message));
+    process.exit(1);
+  }
+
+  const provider = cfg.llm_provider ?? "anthropic";
   process.stdout.write(
-    kleur.gray(`Generating drafts for ${active.length} accounts via ${cfg.claude_model}...\n`),
+    kleur.gray(
+      `Generating drafts for ${active.length} accounts via ${providerLabel(provider)} (${modelForProvider(cfg)})...\n`,
+    ),
   );
 
   let drafts: PlatformDraft[];
@@ -65,8 +79,7 @@ export async function runPost(opts: PostOptions): Promise<void> {
       userMessage: opts.message,
       accounts,
       capabilities,
-      model: cfg.claude_model,
-      apiKey: cfg.anthropic_api_key,
+      config: cfg,
     });
   } catch (e) {
     console.error(kleur.red(`Generation failed: ${(e as Error).message}`));

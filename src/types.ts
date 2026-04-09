@@ -6,19 +6,54 @@
 // UniPost's internal package layout. If UniPost ships an official
 // SDK later, these types become a shim over it.
 
+// Sprint 5 PR5: AgentPost gained OpenAI and Gemini providers in
+// addition to the original Anthropic Claude. The provider is chosen
+// at init time and recorded in llm_provider; the matching key +
+// model are read from the per-provider fields below.
+//
+// Backward compat: configs written by Sprint 4's init only have
+// anthropic_api_key + claude_model. readConfig() defaults the new
+// fields so the existing call sites Just Work — llm_provider falls
+// back to "anthropic" when undefined, which preserves the v0.1
+// behavior exactly.
+export type LLMProvider = "anthropic" | "openai" | "gemini";
+
 export interface AgentPostConfig {
   unipost_api_key: string;
   unipost_api_url: string;
+  llm_provider: LLMProvider;
+
+  // Provider-specific credentials. Only the slots matching
+  // llm_provider are required at runtime; the others are kept
+  // around so a user can switch providers without losing the
+  // other keys they pasted in earlier.
   anthropic_api_key: string;
   claude_model: string;
+
+  openai_api_key: string;
+  openai_model: string;
+
+  gemini_api_key: string;
+  gemini_model: string;
+
   default_platforms: string[];
 }
 
-export const DEFAULT_CONFIG: Omit<AgentPostConfig, "unipost_api_key" | "anthropic_api_key"> = {
+export const DEFAULT_CONFIG: Omit<
+  AgentPostConfig,
+  "unipost_api_key" | "anthropic_api_key" | "openai_api_key" | "gemini_api_key"
+> = {
   unipost_api_url: "https://api.unipost.dev",
-  // The default model. Users can override in ~/.agentpost/config.json
-  // if they want to swap to a cheaper / different Claude model.
+  // Default provider stays Anthropic — the prompt was tuned against
+  // Claude and the v0.1 launch experience should be unchanged for
+  // existing users until they explicitly opt in to a different one.
+  llm_provider: "anthropic",
+  // Default models per provider. Users can override in
+  // ~/.agentpost/config.json. Each default is the current "best
+  // JSON-out general-purpose model" for that provider as of Sprint 5.
   claude_model: "claude-opus-4-6",
+  openai_model: "gpt-4o",
+  gemini_model: "gemini-1.5-pro",
   default_platforms: ["twitter", "linkedin", "bluesky"],
 };
 
