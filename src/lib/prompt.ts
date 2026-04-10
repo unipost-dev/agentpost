@@ -20,7 +20,8 @@
 // quality. Treat it as a v0 — the launch-day version will likely
 // land in PR8 review or in a dedicated tuning session.
 
-import type { ConnectedAccount, CapabilitiesResponse } from "../types.js";
+import type { SocialAccount } from "@unipost/sdk";
+import type { CapabilitiesResponse } from "../types.js";
 
 const SYSTEM_PROMPT = `You are AgentPost, an AI that translates a developer's one-line update into per-platform social media posts.
 
@@ -148,7 +149,7 @@ Output:
 
 export interface PromptInput {
   userMessage: string;
-  accounts: ConnectedAccount[];
+  accounts: SocialAccount[];
   capabilities: CapabilitiesResponse;
 }
 

@@ -25,12 +25,13 @@
 // Throwing here is fine: the CLI catches the error in post.tsx
 // and renders a single-line failure message.
 
-import type { ConnectedAccount, PlatformDraft } from "../../types.js";
+import type { SocialAccount } from "@unipost/sdk";
+import type { DraftWithMeta } from "../../types.js";
 
 export function parseDraftsResponse(
   raw: string,
-  accounts: ConnectedAccount[],
-): PlatformDraft[] {
+  accounts: SocialAccount[],
+): DraftWithMeta[] {
   // Strip markdown fences belt-and-suspenders. The prompt tells the
   // model NOT to wrap output in fences, but every provider has been
   // observed to do it anyway under certain conditions:
@@ -74,7 +75,7 @@ export function parseDraftsResponse(
 
   // Build a quick id → account lookup for both validation and the
   // display decoration step below.
-  const accountIndex = new Map<string, ConnectedAccount>();
+  const accountIndex = new Map<string, SocialAccount>();
   for (const a of accounts) {
     accountIndex.set(a.id, a);
   }
@@ -111,13 +112,15 @@ export function parseDraftsResponse(
   }
 
   // Decorate with display fields the preview UI needs.
+  // SDK uses camelCase (accountId), LLM outputs snake_case (account_id).
   return parsed.drafts.map((d) => {
     const acc = accountIndex.get(d.account_id!)!;
     return {
-      account_id: d.account_id!,
+      accountId: d.account_id!,
       caption: d.caption!,
       platform: acc.platform,
-      account_name: acc.account_name ?? undefined,
+      account_name: acc.account_name ?? acc.id,
+      profile_name: (acc as any).profile_name,
     };
   });
 }

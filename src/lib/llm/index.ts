@@ -23,12 +23,12 @@
 // The trade is a bit of repetition across the three provider files,
 // which is fine — they're each <100 lines and the parser is shared.
 
+import type { SocialAccount } from "@unipost/sdk";
 import type {
   AgentPostConfig,
   CapabilitiesResponse,
-  ConnectedAccount,
+  DraftWithMeta,
   LLMProvider,
-  PlatformDraft,
 } from "../../types.js";
 import { generateDraftsAnthropic } from "./anthropic.js";
 import { generateDraftsOpenAI } from "./openai.js";
@@ -36,7 +36,7 @@ import { generateDraftsGemini } from "./gemini.js";
 
 export interface GenerateOptions {
   userMessage: string;
-  accounts: ConnectedAccount[];
+  accounts: SocialAccount[];
   capabilities: CapabilitiesResponse;
   config: AgentPostConfig;
 }
@@ -46,7 +46,7 @@ export interface GenerateOptions {
 // per-provider implementation. Each implementation calls its own
 // SDK and then runs the shared parser to validate / shape the
 // response into a PlatformDraft[].
-export async function generateDrafts(opts: GenerateOptions): Promise<PlatformDraft[]> {
+export async function generateDrafts(opts: GenerateOptions): Promise<DraftWithMeta[]> {
   const provider: LLMProvider = opts.config.llm_provider ?? "anthropic";
   switch (provider) {
     case "anthropic":

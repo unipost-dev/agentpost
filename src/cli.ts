@@ -1,14 +1,10 @@
 #!/usr/bin/env node
-// AgentPost CLI entry. Three commands:
+// AgentPost CLI entry.
 //
 //   agentpost init                    — set up API keys
 //   agentpost accounts                — list connected accounts
 //   agentpost "<message>"             — generate + publish posts
 //   agentpost post "<message>"        — same as above (explicit form)
-//
-// The bare positional form (no `post` keyword) is the headline UX
-// from the README — `agentpost "shipped webhooks today 🎉"` should
-// just work without remembering a subcommand.
 
 import { Command } from "commander";
 
@@ -21,11 +17,11 @@ const program = new Command();
 program
   .name("agentpost")
   .description("AI-native CLI for multi-platform social posting. Built on UniPost.")
-  .version("0.1.0");
+  .version("0.2.0");
 
 program
   .command("init")
-  .description("Set up your UniPost + Anthropic API keys")
+  .description("Set up your UniPost + AI provider API keys")
   .action(async () => {
     await runInit();
   });
@@ -33,8 +29,9 @@ program
 program
   .command("accounts")
   .description("List your connected social accounts")
-  .action(async () => {
-    await runAccounts();
+  .option("--profile <name>", "Filter by profile name")
+  .action(async (opts: { profile?: string }) => {
+    await runAccounts(opts);
   });
 
 program
@@ -42,23 +39,22 @@ program
   .description("Generate and publish posts to all connected platforms")
   .argument("<message>", "What you want to say (in your own voice)")
   .option("--dry-run", "Generate the drafts but don't publish", false)
-  .action(async (message: string, opts: { dryRun: boolean }) => {
-    await runPost({ message, dryRun: opts.dryRun });
+  .option("--profile <name>", "Only post to accounts in this profile")
+  .action(async (message: string, opts: { dryRun: boolean; profile?: string }) => {
+    await runPost({ message, dryRun: opts.dryRun, profile: opts.profile });
   });
 
-// Bare positional fallback: `agentpost "<message>"` without a
-// subcommand. We register a default action that delegates to the
-// post command. Commander handles this via the program-level
-// arguments() + action() pair.
+// Bare positional fallback: `agentpost "<message>"`
 program
   .argument("[message]", "Shorthand for `agentpost post <message>`")
   .option("--dry-run", "Generate the drafts but don't publish", false)
-  .action(async (message: string | undefined, opts: { dryRun: boolean }) => {
+  .option("--profile <name>", "Only post to accounts in this profile")
+  .action(async (message: string | undefined, opts: { dryRun: boolean; profile?: string }) => {
     if (!message) {
       program.help();
       return;
     }
-    await runPost({ message, dryRun: opts.dryRun });
+    await runPost({ message, dryRun: opts.dryRun, profile: opts.profile });
   });
 
 program.parseAsync(process.argv).catch((err) => {

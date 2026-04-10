@@ -13,12 +13,12 @@
 
 import OpenAI from "openai";
 
-import type { PlatformDraft } from "../../types.js";
+import type { DraftWithMeta } from "../../types.js";
 import { buildSystemPrompt, buildUserMessage } from "../prompt.js";
 import { parseDraftsResponse } from "./parse.js";
 import type { GenerateOptions } from "./index.js";
 
-export async function generateDraftsOpenAI(opts: GenerateOptions): Promise<PlatformDraft[]> {
+export async function generateDraftsOpenAI(opts: GenerateOptions): Promise<DraftWithMeta[]> {
   if (!opts.config.openai_api_key) {
     throw new Error("openai_api_key is not set. Run `agentpost init` to fix.");
   }

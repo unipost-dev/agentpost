@@ -10,8 +10,8 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import kleur from "kleur";
 
+import { UniPost } from "@unipost/sdk";
 import { writeConfig, configPath, configExists, readConfig } from "../lib/config.js";
-import { UniPostClient } from "../lib/unipost.js";
 import { DEFAULT_CONFIG } from "../types.js";
 import type { LLMProvider } from "../types.js";
 
@@ -122,8 +122,12 @@ export async function runInit(): Promise<void> {
   // returns clear error if the key is wrong.
   process.stdout.write(kleur.gray("\nTesting UniPost connection... "));
   try {
-    const client = new UniPostClient(cfg.unipost_api_key, cfg.unipost_api_url);
-    const accounts = await client.listAccounts();
+    const client = new UniPost({
+      apiKey: cfg.unipost_api_key,
+      ...(cfg.unipost_api_url && { baseUrl: cfg.unipost_api_url }),
+    });
+    const res = await client.accounts.list();
+    const accounts = res.data;
     process.stdout.write(
       kleur.green(`✓ ${accounts.length} accounts connected\n`),
     );

@@ -5,12 +5,12 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
-import type { PlatformDraft } from "../../types.js";
+import type { DraftWithMeta } from "../../types.js";
 import { buildSystemPrompt, buildUserMessage } from "../prompt.js";
 import { parseDraftsResponse } from "./parse.js";
 import type { GenerateOptions } from "./index.js";
 
-export async function generateDraftsAnthropic(opts: GenerateOptions): Promise<PlatformDraft[]> {
+export async function generateDraftsAnthropic(opts: GenerateOptions): Promise<DraftWithMeta[]> {
   if (!opts.config.anthropic_api_key) {
     throw new Error("anthropic_api_key is not set. Run `agentpost init` to fix.");
   }

@@ -1,53 +1,65 @@
 // `agentpost post "<message>"` (also the default action when the
 // CLI is invoked with a positional argument).
 //
-// Flow:
-//   1. Read config
-//   2. Fetch capabilities + connected accounts in parallel
-//   3. Call Claude with the prompt + accounts + capabilities
-//   4. Render preview cards (Ink TUI)
-//   5. Prompt user: publish / regenerate / cancel
-//   6. On publish: call UniPost POST /v1/social-posts
-//   7. Print results
+// v2.0: Uses @unipost/sdk instead of hand-written REST client.
+// Structured error handling (AuthError, QuotaError, RateLimitError).
+// --profile flag filters accounts by profile_name.
 
 import React from "react";
 import { render, Box, Text, useApp, useInput } from "ink";
 import kleur from "kleur";
+import { AuthError, QuotaError, RateLimitError } from "@unipost/sdk";
+import type { SocialAccount, CreatePostPlatformPost } from "@unipost/sdk";
 
 import { requireConfig } from "../lib/config.js";
-import { UniPostClient } from "../lib/unipost.js";
+import { createUniPostClient } from "../lib/client.js";
 import { generateDrafts, modelForProvider, providerLabel, requireProviderKey } from "../lib/llm/index.js";
 import { Preview } from "../ui/preview.js";
-import type {
-  PlatformDraft,
-  CapabilitiesResponse,
-  PublishResult,
-} from "../types.js";
+import type { DraftWithMeta, CapabilitiesResponse } from "../types.js";
 
 export interface PostOptions {
   message: string;
   dryRun: boolean;
+  profile?: string;
 }
 
 export async function runPost(opts: PostOptions): Promise<void> {
   const cfg = requireConfig();
-  const client = new UniPostClient(cfg.unipost_api_key, cfg.unipost_api_url);
+  const client = createUniPostClient();
 
-  // Fetch in parallel — both calls are independent and the savings
-  // matter on slow connections.
   process.stdout.write(kleur.gray("Loading your accounts and capabilities...\n"));
-  let accounts, capabilities;
+
+  let accounts: SocialAccount[];
+  let capabilities: CapabilitiesResponse;
   try {
-    [accounts, capabilities] = await Promise.all([
-      client.listAccounts(),
-      client.getCapabilities(),
+    const [accountsRes, capRes] = await Promise.all([
+      client.accounts.list(),
+      fetchCapabilities(cfg.unipost_api_url, cfg.unipost_api_key),
     ]);
+    accounts = accountsRes.data as SocialAccount[];
+    capabilities = capRes;
   } catch (e) {
+    if (e instanceof AuthError) {
+      console.error(kleur.red("Invalid API key. Run `agentpost init` to reset."));
+      process.exit(1);
+    }
     console.error(kleur.red(`Failed to load from UniPost: ${(e as Error).message}`));
     process.exit(1);
   }
 
-  const active = accounts.filter((a) => a.status === "active");
+  // --profile flag: filter by profile_name (case-insensitive)
+  let active = accounts.filter((a) => a.status === "active");
+  if (opts.profile) {
+    active = active.filter(
+      (a) => ((a as any).profile_name ?? "Default").toLowerCase() === opts.profile!.toLowerCase(),
+    );
+    if (active.length === 0) {
+      console.error(kleur.red(`No active accounts in profile "${opts.profile}".`));
+      console.error(kleur.gray("Run `agentpost accounts` to see available profiles."));
+      process.exit(1);
+    }
+  }
+
   if (active.length === 0) {
     console.error(
       kleur.red("No active connected accounts. Run `agentpost accounts` to see what's connected, then connect at least one via your UniPost dashboard."),
@@ -55,10 +67,6 @@ export async function runPost(opts: PostOptions): Promise<void> {
     process.exit(1);
   }
 
-  // Sprint 5 PR5: lazy per-provider key check. The provider is read
-  // from cfg.llm_provider; the matching key has to be present before
-  // we even try to call the SDK. requireProviderKey throws a clear
-  // "run agentpost init" message that we surface verbatim.
   try {
     requireProviderKey(cfg);
   } catch (e) {
@@ -73,11 +81,11 @@ export async function runPost(opts: PostOptions): Promise<void> {
     ),
   );
 
-  let drafts: PlatformDraft[];
+  let drafts: DraftWithMeta[];
   try {
     drafts = await generateDrafts({
       userMessage: opts.message,
-      accounts,
+      accounts: active,
       capabilities,
       config: cfg,
     });
@@ -92,47 +100,82 @@ export async function runPost(opts: PostOptions): Promise<void> {
     return;
   }
 
-  // Render the interactive preview + confirm prompt.
   const action = await runInteractivePreview(drafts, capabilities);
   if (action === "cancel") {
     process.stdout.write(kleur.gray("\nCancelled.\n"));
     return;
   }
 
-  // Publish.
+  // Build SDK-compatible payload
+  const platformPosts: CreatePostPlatformPost[] = drafts.map((d) => ({
+    accountId: d.accountId,
+    caption: d.caption,
+    ...(d.firstComment && { firstComment: d.firstComment }),
+    ...(d.threadPosition && { threadPosition: d.threadPosition }),
+  }));
+
   process.stdout.write(kleur.gray("\nPublishing...\n"));
-  let publishRes;
   try {
-    publishRes = await client.createPost(drafts);
-  } catch (e) {
-    console.error(kleur.red(`Publish failed: ${(e as Error).message}`));
-    process.exit(1);
-  }
-
-  printPublishResults(publishRes.results);
-
-  if (publishRes.status === "failed") {
+    const result = await client.posts.create({ platformPosts });
+    if (result.results) {
+      for (const r of result.results) {
+        const label = r.account_name ? `@${r.account_name}` : r.social_account_id;
+        if (r.status === "published") {
+          process.stdout.write(
+            kleur.green(`✓ ${r.platform} ${label}`) +
+              (r.external_id ? kleur.gray(`  (${r.external_id})`) : "") +
+              "\n",
+          );
+        } else {
+          process.stdout.write(
+            kleur.red(`✗ ${r.platform} ${label}`) +
+              (r.error_message ? `  ${r.error_message}` : "") +
+              "\n",
+          );
+        }
+      }
+    }
+    if (result.status === "failed") process.exit(1);
+  } catch (err) {
+    if (err instanceof AuthError) {
+      console.error(kleur.red("Invalid API key. Run `agentpost init` to reset."));
+    } else if (err instanceof QuotaError) {
+      console.error(kleur.red("Monthly quota exceeded. Visit app.unipost.dev/billing to upgrade."));
+    } else if (err instanceof RateLimitError) {
+      console.error(kleur.red("Rate limited. Please wait a moment and try again."));
+    } else {
+      console.error(kleur.red(`Publish failed: ${(err as Error).message}`));
+    }
     process.exit(1);
   }
 }
 
-// renderStaticPreview prints the cards once and exits — used by
-// --dry-run and by the publish results path.
+// Capabilities endpoint is not yet in the SDK — fetch directly.
+async function fetchCapabilities(baseUrl: string, apiKey: string): Promise<CapabilitiesResponse> {
+  const url = `${baseUrl}/v1/platforms/capabilities`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "User-Agent": "agentpost-cli",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to load capabilities: ${res.status}`);
+  }
+  const body = (await res.json()) as { data: CapabilitiesResponse };
+  return body.data;
+}
+
 function renderStaticPreview(
-  drafts: PlatformDraft[],
+  drafts: DraftWithMeta[],
   capabilities: CapabilitiesResponse,
 ): void {
   const { unmount } = render(<Preview drafts={drafts} capabilities={capabilities} />);
-  // Give Ink a tick to flush, then unmount so the process can exit.
   setTimeout(() => unmount(), 50);
 }
 
-// Interactive preview is a small Ink app that renders the cards
-// and listens for a single keypress: P to publish, C to cancel.
-// Future iterations can add: R to regenerate, E to edit-one,
-// S to skip-platform.
 function runInteractivePreview(
-  drafts: PlatformDraft[],
+  drafts: DraftWithMeta[],
   capabilities: CapabilitiesResponse,
 ): Promise<"publish" | "cancel"> {
   return new Promise((resolve) => {
@@ -162,28 +205,4 @@ function runInteractivePreview(
     };
     render(<App />);
   });
-}
-
-function printPublishResults(results: PublishResult[]): void {
-  for (const r of results) {
-    const label = r.account_name ? `@${r.account_name}` : r.social_account_id;
-    if (r.status === "published") {
-      process.stdout.write(
-        kleur.green(`✓ ${r.platform} ${label}`) +
-          (r.external_id ? kleur.gray(`  (${r.external_id})`) : "") +
-          "\n",
-      );
-      if (r.warnings && r.warnings.length > 0) {
-        for (const w of r.warnings) {
-          process.stdout.write(kleur.yellow(`  warning: ${w}\n`));
-        }
-      }
-    } else {
-      process.stdout.write(
-        kleur.red(`✗ ${r.platform} ${label}`) +
-          (r.error_message ? `  ${r.error_message}` : "") +
-          "\n",
-      );
-    }
-  }
 }

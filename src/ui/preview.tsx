@@ -1,16 +1,15 @@
-// Ink TUI: render per-platform preview cards with character counts.
+// Ink TUI: render per-platform preview cards with character counts,
+// grouped by Profile.
 //
-// One card per draft. Color-coded character counter:
+// Color-coded character counter:
 //   green   < 80% of platform max
 //   yellow  80–95%
 //   red     > 95% (or over the cap)
-//
-// The card is read-only — interaction happens in confirm.tsx.
 
 import React from "react";
 import { Box, Text } from "ink";
 
-import type { PlatformDraft, CapabilitiesResponse } from "../types.js";
+import type { DraftWithMeta, CapabilitiesResponse } from "../types.js";
 
 const PLATFORM_LABEL: Record<string, string> = {
   twitter: "Twitter / X",
@@ -23,33 +22,55 @@ const PLATFORM_LABEL: Record<string, string> = {
 };
 
 interface PreviewProps {
-  drafts: PlatformDraft[];
+  drafts: DraftWithMeta[];
   capabilities: CapabilitiesResponse;
 }
 
 export function Preview({ drafts, capabilities }: PreviewProps) {
+  // Group drafts by profile_name for display
+  const byProfile = new Map<string, DraftWithMeta[]>();
+  for (const draft of drafts) {
+    const key = draft.profile_name ?? "Default";
+    if (!byProfile.has(key)) byProfile.set(key, []);
+    byProfile.get(key)!.push(draft);
+  }
+
+  const showProfileHeaders = byProfile.size > 1 ||
+    (byProfile.size === 1 && !byProfile.has("Default"));
+
   return (
     <Box flexDirection="column" marginY={1}>
-      {drafts.map((draft, i) => (
-        <PreviewCard
-          key={draft.account_id + i}
-          draft={draft}
-          capabilities={capabilities}
-        />
+      {[...byProfile.entries()].map(([profileName, profileDrafts]) => (
+        <Box key={profileName} flexDirection="column">
+          {showProfileHeaders && (
+            <Box marginBottom={1}>
+              <Text color="gray">{"─── "}</Text>
+              <Text bold>Profile: {profileName}</Text>
+              <Text color="gray">{" ───────────────────────────────"}</Text>
+            </Box>
+          )}
+          {profileDrafts.map((draft, i) => (
+            <PreviewCard
+              key={draft.accountId + i}
+              draft={draft}
+              capabilities={capabilities}
+            />
+          ))}
+        </Box>
       ))}
     </Box>
   );
 }
 
 interface PreviewCardProps {
-  draft: PlatformDraft;
+  draft: DraftWithMeta;
   capabilities: CapabilitiesResponse;
 }
 
 function PreviewCard({ draft, capabilities }: PreviewCardProps) {
   const cap = capabilities.platforms[draft.platform];
   const max = cap?.text.max_length ?? 0;
-  const used = countChars(draft.platform, draft.caption);
+  const used = countChars(draft.platform, draft.caption ?? "");
   const ratio = max > 0 ? used / max : 0;
 
   let counterColor: "green" | "yellow" | "red" = "green";
@@ -57,7 +78,7 @@ function PreviewCard({ draft, capabilities }: PreviewCardProps) {
   else if (ratio > 0.8) counterColor = "yellow";
 
   const label = PLATFORM_LABEL[draft.platform] ?? draft.platform;
-  const handle = draft.account_name ? `@${draft.account_name}` : draft.account_id;
+  const handle = draft.account_name ? `@${draft.account_name}` : draft.accountId;
 
   return (
     <Box
@@ -82,17 +103,9 @@ function PreviewCard({ draft, capabilities }: PreviewCardProps) {
   );
 }
 
-// countChars approximates the per-platform character count using
-// the same per-platform rules as the dashboard preview page from
-// Sprint 3 PR9. Twitter URLs collapse to 23 chars (t.co weighting),
-// Bluesky uses grapheme count, others use UTF-16 code units.
 function countChars(platform: string, text: string): number {
-  if (platform === "twitter") {
-    return twitterCount(text);
-  }
-  if (platform === "bluesky") {
-    return blueskyCount(text);
-  }
+  if (platform === "twitter") return twitterCount(text);
+  if (platform === "bluesky") return blueskyCount(text);
   return text.length;
 }
 

@@ -8,12 +8,12 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-import type { PlatformDraft } from "../../types.js";
+import type { DraftWithMeta } from "../../types.js";
 import { buildSystemPrompt, buildUserMessage } from "../prompt.js";
 import { parseDraftsResponse } from "./parse.js";
 import type { GenerateOptions } from "./index.js";
 
-export async function generateDraftsGemini(opts: GenerateOptions): Promise<PlatformDraft[]> {
+export async function generateDraftsGemini(opts: GenerateOptions): Promise<DraftWithMeta[]> {
   if (!opts.config.gemini_api_key) {
     throw new Error("gemini_api_key is not set. Run `agentpost init` to fix.");
   }
