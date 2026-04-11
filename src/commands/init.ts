@@ -43,7 +43,7 @@ export async function runInit(): Promise<void> {
 
   // 1. UniPost API key
   process.stdout.write(
-    kleur.gray("\n1. UniPost API key — get one at https://app.unipost.dev/api-keys\n"),
+    kleur.gray("\n1. UniPost API key — sign in at https://app.unipost.dev and click API Keys in the sidebar\n"),
   );
   const unipostKey = (
     await rl.question(

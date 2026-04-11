@@ -64,7 +64,7 @@ agentpost init
 
 `init` walks through three short prompts:
 
-1. **A UniPost API key** — get one free at [app.unipost.dev/api-keys](https://app.unipost.dev/api-keys). UniPost is the publishing API that handles the OAuth + multi-platform fan-out under the hood.
+1. **A UniPost API key** — sign in at [app.unipost.dev](https://app.unipost.dev) and click **API Keys** in the sidebar to generate one. UniPost is the publishing API that handles the OAuth + multi-platform fan-out under the hood.
 2. **An LLM provider** — pick one of:
    - `1` Anthropic Claude (default; the prompt was tuned against it)
    - `2` OpenAI (`gpt-4o`)

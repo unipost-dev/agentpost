@@ -1,6 +1,6 @@
 {
   "name": "@unipost/agentpost",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "AI-native CLI for multi-platform social posting. Describe what you shipped, AI posts it everywhere.",
   "type": "module",
   "main": "dist/index.js",

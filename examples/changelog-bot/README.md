@@ -30,7 +30,7 @@ Settings → Secrets and variables → Actions → New repository secret:
 
 | Name | Value |
 |---|---|
-| `UNIPOST_API_KEY` | A `up_live_...` key from [app.unipost.dev/api-keys](https://app.unipost.dev/api-keys) |
+| `UNIPOST_API_KEY` | A `up_live_...` key — sign in at [app.unipost.dev](https://app.unipost.dev) and click **API Keys** in the sidebar |
 | `ANTHROPIC_API_KEY` | An `sk-ant-...` key from [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 
 ### 3. Drop the workflow into your repo

@@ -10,7 +10,7 @@
 #      OWN repo (not the AgentPost monorepo).
 #   2. Replace FEED_URL below with your blog/podcast/release feed.
 #   3. Add two secrets to your repo (Settings → Secrets and variables → Actions):
-#        UNIPOST_API_KEY     — from app.unipost.dev/api-keys
+#        UNIPOST_API_KEY     — sign in at app.unipost.dev → API Keys in the sidebar
 #        ANTHROPIC_API_KEY   — from console.anthropic.com/settings/keys
 #   4. (Optional) Pin a stable AgentPost version by checking out a
 #      specific commit instead of main.

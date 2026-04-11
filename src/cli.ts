@@ -17,7 +17,7 @@ const program = new Command();
 program
   .name("agentpost")
   .description("AI-native CLI for multi-platform social posting. Built on UniPost.")
-  .version("0.2.0");
+  .version("0.2.1");
 
 program
   .command("init")
