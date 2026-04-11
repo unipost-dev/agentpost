@@ -120,7 +120,7 @@ export function parseDraftsResponse(
       caption: d.caption!,
       platform: acc.platform,
       account_name: acc.account_name ?? acc.id,
-      profile_name: (acc as any).profile_name,
+      profile_name: acc.profile_name,
     };
   });
 }

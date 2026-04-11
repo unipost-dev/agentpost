@@ -15,16 +15,18 @@ import { requireConfig } from "../lib/config.js";
 import { createUniPostClient } from "../lib/client.js";
 import { generateDrafts, modelForProvider, providerLabel, requireProviderKey } from "../lib/llm/index.js";
 import { Preview } from "../ui/preview.js";
-import type { DraftWithMeta, CapabilitiesResponse } from "../types.js";
+import type { AgentPostConfig, DraftWithMeta, CapabilitiesResponse, LLMProvider } from "../types.js";
 
 export interface PostOptions {
   message: string;
   dryRun: boolean;
   profile?: string;
+  llm?: string;
 }
 
 export async function runPost(opts: PostOptions): Promise<void> {
-  const cfg = requireConfig();
+  const baseCfg = requireConfig();
+  const cfg = applyLLMOverride(baseCfg, opts.llm);
   const client = createUniPostClient();
 
   process.stdout.write(kleur.gray("Loading your accounts and capabilities...\n"));
@@ -36,7 +38,7 @@ export async function runPost(opts: PostOptions): Promise<void> {
       client.accounts.list(),
       fetchCapabilities(cfg.unipost_api_url, cfg.unipost_api_key),
     ]);
-    accounts = accountsRes.data as SocialAccount[];
+    accounts = accountsRes.data;
     capabilities = capRes;
   } catch (e) {
     if (e instanceof AuthError) {
@@ -51,7 +53,7 @@ export async function runPost(opts: PostOptions): Promise<void> {
   let active = accounts.filter((a) => a.status === "active");
   if (opts.profile) {
     active = active.filter(
-      (a) => ((a as any).profile_name ?? "Default").toLowerCase() === opts.profile!.toLowerCase(),
+      (a) => (a.profile_name || "Default").toLowerCase() === opts.profile!.toLowerCase(),
     );
     if (active.length === 0) {
       console.error(kleur.red(`No active accounts in profile "${opts.profile}".`));
@@ -148,6 +150,25 @@ export async function runPost(opts: PostOptions): Promise<void> {
     }
     process.exit(1);
   }
+}
+
+// --llm flag validation. Accepts the three supported provider names
+// (case-insensitive) and returns a new config with llm_provider set
+// to the override. Exits with a clear error for anything else so the
+// user sees "unknown provider 'claude'" instead of a generic failure.
+function applyLLMOverride(cfg: AgentPostConfig, override: string | undefined): AgentPostConfig {
+  if (!override) return cfg;
+  const normalized = override.toLowerCase();
+  const allowed: readonly LLMProvider[] = ["anthropic", "openai", "gemini"] as const;
+  if (!(allowed as readonly string[]).includes(normalized)) {
+    console.error(
+      kleur.red(
+        `Unknown LLM provider "${override}". Expected one of: ${allowed.join(", ")}.`,
+      ),
+    );
+    process.exit(1);
+  }
+  return { ...cfg, llm_provider: normalized as LLMProvider };
 }
 
 // Capabilities endpoint is not yet in the SDK — fetch directly.

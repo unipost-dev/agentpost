@@ -17,7 +17,7 @@ export async function runAccounts(opts: AccountsOptions = {}): Promise<void> {
   let accounts: SocialAccount[];
   try {
     const res = await client.accounts.list();
-    accounts = res.data as SocialAccount[];
+    accounts = res.data;
   } catch (e) {
     if (e instanceof AuthError) {
       console.error(kleur.red("Invalid API key. Run `agentpost init` to reset."));
@@ -37,10 +37,9 @@ export async function runAccounts(opts: AccountsOptions = {}): Promise<void> {
     return;
   }
 
-  // Group by profile_name
   const byProfile = new Map<string, SocialAccount[]>();
   for (const acc of accounts) {
-    const key = (acc as any).profile_name ?? "Default";
+    const key = acc.profile_name || "Default";
     if (!byProfile.has(key)) byProfile.set(key, []);
     byProfile.get(key)!.push(acc);
   }
